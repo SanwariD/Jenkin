@@ -1,27 +1,65 @@
-pipeline{
+pipeline {
     agent any
-    stages{
-        stage("Build"){
-            steps{
-                echo "Building...."
-            }
-            post{
-                always{
-                    mail to:dsanwaridesilva2001@gmail.com,
-                    subject: "Build Status Email",
-                    Body: "Build log attached!"
-                }
+    stages {
+        stage('Build') {
+            steps {
+                sh 'mvn clean package'
             }
         }
-        stage("Test"){
-            steps{
-                echo "Testing...."
+
+        stage('Unit and Integration Tests') {
+            steps {
+                sh 'npm test'
             }
         }
-        stage("Deploy"){
-            steps{
-                echo "Deploying..."
+
+        stage('Code Analysis') {
+            steps {
+                sh 'sonar-scanner'
             }
+        }
+
+        stage('Security Scan') {
+            steps {
+                 sh 'zap-cli --scan <target>'
+            }
+        }
+
+        stage('Deploy to Staging') {
+            steps {
+                sh 'ansible-playbook deploy-staging.yml'
+            }
+        }
+
+        stage('Integration Tests on Staging') {
+            steps {
+                sh 'npm run integration-test-staging'
+            }
+        }
+
+        stage('Deploy to Production') {
+            steps {
+                sh 'ansible-playbook deploy-production.yml'
+            }
+        }
+    }
+    
+    post {
+        success {
+            emailext (
+                subject: 'Pipeline Success: ${currentBuild.fullDisplayName}',
+                body: 'The pipeline has been successfully executed.',
+                attachLog: true,
+                to: 'dsanwaridesilva2001@gmail.com'
+            )
+        }
+        failure {
+            emailext (
+                subject: 'Pipeline Failure: ${currentBuild.fullDisplayName}',
+                body: 'The pipeline has failed. Please check the logs for details.',
+                attachLog: true,
+                to: 'dsanwaridesilva2001@gmail.com'
+            )
         }
     }
 }
